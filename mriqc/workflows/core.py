@@ -25,6 +25,8 @@ def build_workflow(dataset, mod, settings=None):
         workflow = anat_qc_workflow(dataset, mod='T1w', settings=settings)
     elif mod == 'T2w':
         workflow = anat_qc_workflow(dataset, mod='T2w', settings=settings)
+    elif mod == 'dwi':
+        workflow = dwi_qc_workflow(dataset, mod='dwi', settings=settings)
     else:
         raise NotImplementedError('Unknown workflow type "%s"' % mod)
 
