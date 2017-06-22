@@ -10,11 +10,12 @@ from bids.grabbids import BIDSLayout
 
 from builtins import str, bytes
 
-DEFAULT_MODALITIES = ['bold', 'T1w', 'T2w']
+DEFAULT_MODALITIES = ['bold', 'T1w', 'T2w','dwi']
 DEFAULT_QUERIES = {
     'bold': {'modality': 'func', 'type': 'bold', 'extensions': ['nii', 'nii.gz']},
     'T1w': {'modality': 'anat', 'type': 'T1w', 'extensions': ['nii', 'nii.gz']},
-    'T2w': {'modality': 'anat', 'type': 'T2w', 'extensions': ['nii', 'nii.gz']}
+    'T2w': {'modality': 'anat', 'type': 'T2w', 'extensions': ['nii', 'nii.gz']},
+    'dwi': {'modality': 'dwi', 'type': 'dwi', 'extensions': ['nii', 'nii.gz']}
 }
 
 def collect_bids_data(dataset, participant_label=None, session=None, run=None,
