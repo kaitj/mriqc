@@ -57,7 +57,6 @@ class ExtractB0(SimpleInterface):
 			self._results['ref_img'])
 		
 		# Output other b0s
-		out_imgs = []
 		count = 1
 		for b0 in b0s[1:]:
 			filename.append(op.abspath('dwib0_%03i.nii.gz' % count))
