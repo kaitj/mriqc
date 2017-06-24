@@ -14,8 +14,7 @@ import numpy as np
 import nibabel as nb 
 
 from niworkflows.nipype.interfaces.base import (
-    traits, TraitedSpec, OutputMultiPath, File)
-from niworkflows.nipype import logging
+    TraitedSpec, OutputMultiPath, BaseInterfaceInputSpec, File)
 from niworkflows.nipype.utils import NUMPY_MMAP
 from niworkflows.interfaces.base import SimpleInterface
 
