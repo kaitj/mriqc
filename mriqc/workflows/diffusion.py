@@ -3,16 +3,16 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 #
-# @Author: 
-# @Date:   
-# @Email:  
-# @Last modified by:  
+# @Author:
+# @Date:
+# @Email:
+# @Last modified by:
 """
 =======================
 The diffusion workflow
 =======================
 
-.. image :: _static/anatomical_workflow_source.svg  
+.. image :: _static/anatomical_workflow_source.svg
 
 The anatomical workflow follows the following steps:
 
@@ -52,22 +52,23 @@ from niworkflows.interfaces.registration import RobustMNINormalizationRPT as Rob
 
 from .. import DEFAULTS, logging
 from ..interfaces import (StructuralQC, ArtifactMask, ReadSidecarJSON,
-                          ConformImage, ComputeQI2, IQMFileSink, RotationMask)
+                          ConformImage, ComputeQI2, IQMFileSink, RotationMask,
+                          ExtractB0)
 from ..utils.misc import check_folder
 WFLOGGER = logging.getLogger('mriqc.workflow')
 
 
-def anat_qc_workflow(dataset, settings, mod='T1w', name='anatMRIQC'):
+def dwi_qc_workflow(dataset, settings, mod='dwi', name='dwiMRIQC'):
     """
     One-subject-one-session-one-run pipeline to extract the NR-IQMs from
-    anatomical images
+    diffusion weighted images
 
     .. workflow::
 
         import os.path as op
-        from mriqc.workflows.anatomical import anat_qc_workflow
+        from mriqc.workflows.diffusion import dwi_qc_workflow
         datadir = op.abspath('data')
-        wf = anat_qc_workflow([op.join(datadir, 'sub-001/anat/sub-001_T1w.nii.gz')],
+        wf = dwi_qc_workflow([op.join(datadir, 'sub-001/anat/sub-001_T1w.nii.gz')],
                               settings={'bids_dir': datadir,
                                         'output_dir': op.abspath('out'),
                                         'ants_nthreads': 1,
@@ -76,30 +77,35 @@ def anat_qc_workflow(dataset, settings, mod='T1w', name='anatMRIQC'):
     """
 
     workflow = pe.Workflow(name=name+mod)
-    WFLOGGER.info('Building anatomical MRI QC workflow, datasets list: %s',
+    WFLOGGER.info('Building diffusion weighted MRI QC workflow, datasets list: %s',
                   sorted([d.replace(settings['bids_dir'] + '/', '') for d in dataset]))
 
     # Define workflow, inputs and outputs
     # 0. Get data
-    inputnode = pe.Node(niu.IdentityInterface(fields=['in_file']), name='inputnode')
+    inputnode = pe.Node(niu.IdentityInterface(fields=['in_file, in_bval']), name='inputnode')
     inputnode.iterables = [('in_file', dataset)]
 
     outputnode = pe.Node(niu.IdentityInterface(fields=['out_json']), name='outputnode')
-
     # 1. Reorient anatomical image
     to_ras = pe.Node(ConformImage(check_dtype=False), name='conform')
-    # 2. Skull-stripping (afni)
+    # 2. Extract b0 images
+    extb0 = pe.Node(ExtractB0, name='ExtractB0s')
+    # 3. Eddy correction with fsl FLIRT
+    flirt = pe.MapNode(fsl.FLIRT(out_matrix_file='affine_xfrm'), name='flirt')
+    # 4. Average b0 images
+    avgb0 = avgb0_wf()
+    # 5. Skull-stripping (afni)
     asw = skullstrip_wf(n4_nthreads=settings.get('ants_nthreads', 1), unifize=False)
-    # 3. Head mask
+    # 6. Head mask
     hmsk = headmsk_wf()
-    # 4. Spatial Normalization, using ANTs
+    # 7. Spatial Normalization, using ANTs
     norm = spatial_normalization(settings)
-    # 5. Air mask (with and without artifacts)
+    # 8. Air mask (with and without artifacts)
     amw = airmsk_wf()
-    # 6. Brain tissue segmentation
+    # 9. Brain tissue segmentation
     segment = pe.Node(fsl.FAST(segments=True, out_basename='segment', img_type=int(mod[1])),
                       name='segmentation', estimated_memory_gb=3)
-    # 7. Compute IQMs
+    # 10. Compute IQMs
     iqmswf = compute_iqms(settings, modality=mod)
     # Reports
     repwf = individual_reports(settings)
@@ -108,7 +114,12 @@ def anat_qc_workflow(dataset, settings, mod='T1w', name='anatMRIQC'):
     workflow.connect([
         (inputnode, to_ras, [('in_file', 'in_file')]),
         (inputnode, iqmswf, [('in_file', 'inputnode.in_file')]),
-        (to_ras, asw, [('out_file', 'inputnode.in_file')]),
+        (inputnode, extb0, [('in_bval', 'in_bval')]),
+        (to_ras, extb0, [('out_file', 'in_dwi')]),
+        (extb0, flirt, [('ref_img', 'reference')]),
+        (extb0, flirt, [('out_imgs', 'in_file')]),
+        (flirt, avgb0, [('out_file', 'inputnode.in_files')]),
+        (avgb0, asw, [('out_file', 'inputnode.in_file')]),
         (asw, segment, [('outputnode.out_file', 'in_files')]),
         (asw, hmsk, [('outputnode.bias_corrected', 'inputnode.in_file')]),
         (segment, hmsk, [('tissue_class_map', 'inputnode.in_segm')]),
@@ -120,10 +131,10 @@ def anat_qc_workflow(dataset, settings, mod='T1w', name='anatMRIQC'):
             ('outputnode.inverse_composite_transform', 'inputnode.inverse_composite_transform')]),
         (norm, repwf, ([
             ('outputnode.out_report', 'inputnode.mni_report')])),
-        (to_ras, amw, [('out_file', 'inputnode.in_file')]),
+        (avgb0, amw, [('out_file', 'inputnode.in_file')]),
         (asw, amw, [('outputnode.out_mask', 'inputnode.in_mask')]),
         (hmsk, amw, [('outputnode.out_file', 'inputnode.head_mask')]),
-        (to_ras, iqmswf, [('out_file', 'inputnode.in_ras')]),
+        (avgb0, iqmswf, [('out_file', 'inputnode.in_ras')]),
         (asw, iqmswf, [('outputnode.bias_corrected', 'inputnode.inu_corrected'),
                        ('outputnode.bias_image', 'inputnode.in_inu'),
                        ('outputnode.out_mask', 'inputnode.brainmask')]),
@@ -133,7 +144,7 @@ def anat_qc_workflow(dataset, settings, mod='T1w', name='anatMRIQC'):
         (segment, iqmswf, [('tissue_class_map', 'inputnode.segmentation'),
                            ('partial_volume_files', 'inputnode.pvms')]),
         (hmsk, iqmswf, [('outputnode.out_file', 'inputnode.headmask')]),
-        (to_ras, repwf, [('out_file', 'inputnode.in_ras')]),
+        (avgb0, repwf, [('out_file', 'inputnode.in_ras')]),
         (asw, repwf, [('outputnode.bias_corrected', 'inputnode.inu_corrected'),
                       ('outputnode.out_mask', 'inputnode.brainmask')]),
         (hmsk, repwf, [('outputnode.out_file', 'inputnode.headmask')]),
@@ -516,6 +527,35 @@ def airmsk_wf(name='AirMaskWorkflow'):
     ])
     return workflow
 
+def avgb0_wf(name='AvgB0Workflow'):
+    """
+    Implements workflow to calculate the average of dwi b0 images.
+
+    .. workflow::
+
+        from mriqc.workflows.diffusion import avgb0_wf
+        wf = avgb0_wf
+
+    """
+
+    workflow = pe.Workflow(name=name)
+
+    inputnode = pe.Node(niu.IdentityInterface(
+        fields=['in_files']),
+        name='inputnode')
+    outputnode = pe.Node(niu.IdentityInterface(fields=['out_file']),
+                            name='outputnode')
+
+    merge = pe.Node(fsl.Merge(dimension='t'), name='Merge')
+
+    avg = pe.Node(fsl.maths.MeanImage(), name='AvgImage')
+
+    workflow.connect([
+        (inputnode, merge, [('in_files', 'in_files')]),
+        (merge, avg, [('merged_file', 'in_file')]),
+        (avg, outputnode, [('out_file', 'out_file')])
+    ])
+    return workflow
 
 def _add_provenance(in_file, settings, air_msk, rot_msk):
     from mriqc import __version__ as version

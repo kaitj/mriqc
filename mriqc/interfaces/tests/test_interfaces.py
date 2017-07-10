@@ -17,11 +17,8 @@ Anatomical tests
 # import pytest
 # from scipy.stats import rice
 # from mriqc.interfaces.anatomical import artifact_mask
-import sys
-sys.path.append('/home/tkai/Git/mriqc')
-sys.path.append('/home/tkai/Git/niworkflows')
-from mriqc.interfaces.diffusion import ExtractB0
-from niworkflows.nipype.pipeline import engine as pe
+# from mriqc.interfaces.diffusion import ExtractB0
+# from niworkflows.nipype.pipeline import engine as pe
 # @pytest.mark.parametrize("sigma", [0.02, 0.03, 0.05, 0.08, 0.12, 0.15, 0.2, 0.4, 0.5])
 # def test_qi1(sigma):'
 #     size = (50, 50, 50)
@@ -39,7 +36,7 @@ from niworkflows.nipype.pipeline import engine as pe
 """
 Diffusion tests
 """
-test = pe.Node(interface=ExtractB0(), name='ExtractB0')
-test.inputs.in_dwi='/home/tkai/uwo/khangrp/users/tkai/Test/EPL14_LHS_5082/dwi/multiband/dwi_1.nii.gz'
-test.inputs.in_bval='/home/tkai/uwo/khangrp/users/tkai/Test/EPL14_LHS_5082/dwi/multiband/dwi_1.bval'
-test.run()
+#    test = pe.Node(interface=ExtractB0(), name='ExtractB0')
+#    test.inputs.in_dwi=''
+#    test.inputs.in_bval=''
+#    test.run()
