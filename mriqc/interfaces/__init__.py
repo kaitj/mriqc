@@ -8,6 +8,7 @@ from __future__ import print_function, division, absolute_import, unicode_litera
 from .anatomical import \
     StructuralQC, ArtifactMask, ComputeQI2, Harmonize, RotationMask
 from .functional import FunctionalQC, Spikes
+from .diffusion import ExtractB0
 from .bids import ReadSidecarJSON, IQMFileSink
 from .viz import PlotMosaic, PlotContours, PlotSpikes
 from .common import ConformImage, EnsureSize
